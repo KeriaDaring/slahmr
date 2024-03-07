@@ -1,10 +1,12 @@
 import os
-import numpy as np
 import subprocess
 
-import preproc.launch_phalp as phalp
-from preproc.launch_slam import split_frames_shots, get_command, check_intrins
-from preproc.extract_frames import video_to_frames
+import numpy as np
+
+import slahmr.preproc.launch_phalp as phalp
+from slahmr.preproc.extract_frames import video_to_frames
+from slahmr.preproc.launch_slam import (check_intrins, get_command,
+                                        split_frames_shots)
 
 
 def is_nonempty(d):
@@ -39,9 +41,9 @@ def preprocess_tracks(img_dir, track_dir, shot_dir, overwrite=False):
 
     phalp.process_seq(
         [gpu],
-        res_root,
         seq,
         img_dir,
+        f"{res_root}/phalp_out",
         track_name=track_name,
         shot_name=shot_name,
         overwrite=overwrite,

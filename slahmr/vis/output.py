@@ -4,12 +4,11 @@ import numpy as np
 import torch
 import subprocess
 
-from body_model import run_smpl
-from geometry import camera as cam_util
-from geometry.mesh import make_batch_mesh
-from geometry.plane import parse_floor_plane, get_plane_transform
-
-from util.tensor import detach_all, to_torch, move_to
+from slahmr.body_model import run_smpl
+from slahmr.geometry import camera as cam_util
+from slahmr.geometry.mesh import make_batch_mesh
+from slahmr.geometry.plane import parse_floor_plane, get_plane_transform
+from slahmr.util.tensor import detach_all, move_to
 
 from .fig_specs import get_seq_figure_skip, get_seq_static_lookat_points
 from .tools import smpl_to_geometry
@@ -38,11 +37,7 @@ def prep_result_vis(res, vis_mask, track_ids, body_model):
     if "floor_plane" in res:
         floor_plane = res["floor_plane"][0]
     return build_scene_dict(
-        world_smpl,
-        vis_mask,
-        track_ids,
-        T_w2c=T_w2c,
-        floor_plane=floor_plane,
+        world_smpl, vis_mask, track_ids, T_w2c=T_w2c, floor_plane=floor_plane,
     )
 
 
@@ -173,8 +168,6 @@ def build_pyrender_scene(
     if len(render_views) < 1:
         return
 
-    assert all(view in ["src_cam", "front", "above", "side"] for view in render_views)
-
     scene = move_to(detach_all(scene), "cpu")
     src_cams = scene["cameras"]["src_cam"]
     verts, colors, faces, bounds = scene["geometry"]
@@ -249,12 +242,11 @@ def make_video_grid_2x2(out_path, vid_paths, overwrite=False):
     if any(not os.path.isfile(v) for v in vid_paths):
         print("not all inputs exist!", vid_paths)
         return
-
+    
     # resize each input by half and then tile
     # so the output video is the same resolution
-    v1, v2, v3, v4 = vid_paths
     cmd = (
-        f"ffmpeg -i {v1} -i {v2} -i {v3} -i {v4} "
+        f"ffmpeg -i {vid_paths[0]} -i {vid_paths[1]} -i {vid_paths[2]} -i {vid_paths[3]} "
         f"-filter_complex '[0:v]scale=iw/2:ih/2[v0];"
         f"[1:v]scale=iw/2:ih/2[v1];"
         f"[2:v]scale=iw/2:ih/2[v2];"

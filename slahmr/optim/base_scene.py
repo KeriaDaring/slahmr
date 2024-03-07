@@ -5,13 +5,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from body_model import SMPL_JOINTS, KEYPT_VERTS, smpl_to_openpose, run_smpl
-from geometry.rotation import (
-    rotation_matrix_to_angle_axis,
-    angle_axis_to_rotation_matrix,
-)
-from util.logger import Logger
-from util.tensor import move_to, detach_all
+from slahmr.body_model import SMPL_JOINTS, KEYPT_VERTS, smpl_to_openpose, run_smpl
+from slahmr.geometry.rotation import rotation_matrix_to_angle_axis
+from slahmr.util.logger import Logger
+from slahmr.util.tensor import move_to, detach_all
 
 from .helpers import estimate_initial_trans
 from .params import CameraParams
@@ -88,55 +85,41 @@ class BaseSceneModel(nn.Module):
 
         # initialize body params
         B, T = self.batch_size, self.seq_len
-        device = next(iter(cam_data.values())).device
-        init_betas = torch.zeros(B, self.num_betas, device=device)
+        init_pose = torch.zeros(B, T, self.latent_pose_dim)
+        init_betas = torch.zeros(B, self.num_betas)
+        init_trans = torch.zeros(B, T, 3)
+        init_rot = (
+            torch.tensor([np.pi, 0, 0], dtype=torch.float32)
+            .reshape(1, 1, 3)
+            .repeat(B, T, 1)
+        )
 
         if self.use_init and "init_body_pose" in obs_data:
             init_pose = obs_data["init_body_pose"][:, :, :J_BODY, :]
-            init_pose_latent = self.pose2latent(init_pose)
-        else:
-            init_pose = torch.zeros(B, T, J_BODY, 3, device=device)
-            init_pose_latent = torch.zeros(B, T, self.latent_pose_dim, device=device)
-
-        # transform into world frame (T, 3, 3), (T, 3)
-        R_w2c, t_w2c = cam_data["cam_R"], cam_data["cam_t"]
-        R_c2w = R_w2c.transpose(-1, -2)
-        t_c2w = -torch.einsum("tij,tj->ti", R_c2w, t_w2c)
+            init_pose = self.pose2latent(init_pose)
 
         if self.use_init and "init_root_orient" in obs_data:
-            init_rot = obs_data["init_root_orient"]  # (B, T, 3)
-            init_rot_mat = angle_axis_to_rotation_matrix(init_rot)
-            init_rot_mat = torch.einsum("tij,btjk->btik", R_c2w, init_rot_mat)
-            init_rot = rotation_matrix_to_angle_axis(init_rot_mat)
-        else:
-            init_rot = (
-                torch.tensor([np.pi, 0, 0], dtype=torch.float32)
-                .reshape(1, 1, 3)
-                .repeat(B, T, 1)
-            )
+            init_rot = obs_data["init_root_orient"]
 
-        init_trans = torch.zeros(B, T, 3, device=device)
         if self.use_init and "init_trans" in obs_data:
-            # must offset by the root location before applying camera to world transform
-            pred_data = self.pred_smpl(init_trans, init_rot, init_pose, init_betas)
-            root_loc = pred_data["joints3d"][..., 0, :]  # (B, T, 3)
             init_trans = obs_data["init_trans"]  # (B, T, 3)
-            init_trans = (
-                torch.einsum("tij,btj->bti", R_c2w, init_trans + root_loc)
-                + t_c2w[None]
-                - root_loc
-            )
+            # transform into world frame (T, 3, 3), (T, 3)
+            R_w2c, t_w2c = cam_data["cam_R"], cam_data["cam_t"]
+            R_c2w = R_w2c.transpose(-1, -2)
+            t_c2w = -torch.einsum("tij,tj->ti", R_c2w, t_w2c)
+            init_trans = torch.einsum("tij,btj->bti", R_c2w, init_trans) + t_c2w[None]
         else:
             # initialize trans with reprojected joints
-            pred_data = self.pred_smpl(init_trans, init_rot, init_pose, init_betas)
+            body_pose = self.latent2pose(init_pose)
+            pred_data = self.pred_smpl(init_trans, init_rot, body_pose, init_betas)
             init_trans = estimate_initial_trans(
-                init_pose,
+                body_pose,
                 pred_data["joints3d_op"],
                 obs_data["joints2d"],
                 obs_data["intrins"][:, 0],
             )
 
-        self.params.set_param("latent_pose", init_pose_latent)
+        self.params.set_param("latent_pose", init_pose)
         self.params.set_param("betas", init_betas)
         self.params.set_param("trans", init_trans)
         self.params.set_param("root_orient", init_rot)

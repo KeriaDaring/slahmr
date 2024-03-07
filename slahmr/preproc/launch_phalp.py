@@ -3,8 +3,8 @@ import subprocess
 import multiprocessing as mp
 from concurrent import futures
 
-from preproc.datasets import update_args
-from preproc.export_phalp import export_sequence_results
+from slahmr.preproc.datasets import update_args, get_img_dir
+from slahmr.preproc.export_phalp import export_sequence_results
 
 
 def launch_phalp(gpus, seq, img_dir, res_dir, overwrite=False):
@@ -17,19 +17,41 @@ def launch_phalp(gpus, seq, img_dir, res_dir, overwrite=False):
     worker_id = cur_proc._identity[0] - 1 if len(cur_proc._identity) > 0 else 0
     gpu = gpus[worker_id % len(gpus)]
 
-    PHALP_DIR = os.path.abspath(f"{__file__}/../")
+    PHALP_DIR = os.path.abspath(f"{__file__}/../../../third_party/PHALP_plus")
     print("PHALP DIR", PHALP_DIR)
 
+    base_path, sample = img_dir.split(seq)[:2]
     cmd_args = [
         f"cd {PHALP_DIR};",
         f"CUDA_VISIBLE_DEVICES={gpu}",
-        "python track.py",
-        f"video.source={img_dir}",
-        f"video.output_dir={res_dir}",
-        f"overwrite={overwrite}",
-        "detect_shots=True",
-        "video.extract_video=False",
-        "render.enable=False",
+        "python run_phalp.py",
+        f"--base_path {base_path}",
+        f"--video_seq {seq}",
+        f"--sample '{sample}'",
+        f"--storage_folder {res_dir}",
+        "--track_dataset posetrack-val",
+        "--predict TPL",
+        "--distance_type EQ_010",
+        "--encode_type 4c",
+        "--detect_shots True",
+        "--track_history 7",
+        "--past_lookback 1",
+        "--max_age_track 50",
+        "--n_init 5",
+        "--low_th_c 0.8",
+        "--alpha 0.1",
+        "--hungarian_th 50",
+        "--render_type HUMAN_FULL_FAST",
+        "--render True",
+        "--store_mask True",
+        "--res 256",
+        "--render_up_scale 2",
+        "--verbose False",
+        f"--overwrite {overwrite}",
+        "--use_gt False",
+        "--batch_id -1",
+        "--detection_type mask",
+        "--start_frame -1",
     ]
 
     cmd = " ".join(cmd_args)
@@ -39,10 +61,9 @@ def launch_phalp(gpus, seq, img_dir, res_dir, overwrite=False):
 
 def process_seq(
     gpus,
-    out_root,
     seq,
     img_dir,
-    out_name="phalp_out",
+    res_dir,
     track_name="track_preds",
     shot_name="shot_idcs",
     overwrite=False,
@@ -50,34 +71,21 @@ def process_seq(
     """
     Run and export PHALP results
     """
-    name = os.path.basename(seq)
-    res_root = f"{out_root}/{out_name}/{seq}"
-    os.makedirs(res_root, exist_ok=True)
-    res_dir = os.path.join(res_root, "results")
-    res_path = f"{res_root}/{name}.pkl"
+    res_path = f"{res_dir}/results/{seq}.pkl"
     if overwrite or not os.path.isfile(res_path):
-        res = launch_phalp(gpus, seq, img_dir, res_root, overwrite)
-        os.rename(f"{res_dir}/demo_{name}.pkl", res_path)
+        res = launch_phalp(gpus, seq, img_dir, res_dir, overwrite)
         assert res == 0, "PHALP FAILED"
 
     # export the PHALP predictions
-    track_dir = f"{out_root}/{track_name}/{seq}"
-    shot_path = f"{out_root}/{shot_name}/{seq}.json"
-
-    export_sequence_results(res_path, track_dir, shot_path)
+    out_root, out_name = os.path.split(res_dir)
+    export_sequence_results(
+        out_root,
+        seq,
+        res_name=f"{out_name}/results",
+        track_name=track_name,
+        shot_name=shot_name,
+    )
     return 0
-
-
-def get_out_dir(src_root, src_dir, src_token, out_token):
-    """
-    :param src_root (str) root of all data
-    :param src_dir (str) img input dir
-    :param src_token (str) parent name of image input dir
-    :param out_token (str) name of output dir
-    """
-    src_suffix = src_dir.removeprefix(src_root)
-    out_dir = f"{out_root}/{src_suffix}"
-    return out_dir.replace(src_token, out_token)
 
 
 if __name__ == "__main__":
@@ -88,7 +96,7 @@ if __name__ == "__main__":
     parser.add_argument("--root", default=None, help="root dir of data, default None")
     parser.add_argument("--split", default="val", help="split of dataset, default val")
     parser.add_argument(
-        "--img_name", default=None, help="input image directory name, default None"
+        "--out_name", default="phalp_out", help="output name, default phalp_out"
     )
     parser.add_argument("--seqs", nargs="*", default=None)
     parser.add_argument("--gpus", nargs="*", default=[0])
@@ -97,20 +105,22 @@ if __name__ == "__main__":
     args = parser.parse_args()
     args = update_args(args)
 
-    out_root = f"{args.root}/slahmr/{args.split}"
-
-    print(f"running phalp on {len(args.img_dirs)} image directories")
+    print(f"running phalp on {len(args.seqs)} sequences")
     if len(args.gpus) > 1:
         with futures.ProcessPoolExecutor(max_workers=len(args.gpus)) as exe:
-            for img_dir, seq in zip(args.img_dirs, args.seqs):
+            for seq in args.seqs:
+                img_dir = get_img_dir(args.type, args.root, seq, args.split)
+                res_dir = f"{args.root}/slahmr/{args.out_name}"
                 exe.submit(
                     process_seq,
                     args.gpus,
-                    out_root,
                     seq,
                     img_dir,
+                    res_dir,
                     overwrite=args.overwrite,
                 )
     else:
-        for img_dir, seq in zip(args.img_dirs, args.seqs):
-            process_seq(args.gpus, out_root, seq, img_dir, overwrite=args.overwrite)
+        for seq in args.seqs:
+            img_dir = get_img_dir(args.type, args.root, seq, args.split)
+            res_dir = f"{args.root}/slahmr/{args.out_name}"
+            process_seq(args.gpus, seq, img_dir, res_dir, overwrite=args.overwrite)

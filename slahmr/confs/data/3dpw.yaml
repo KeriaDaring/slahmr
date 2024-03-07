@@ -1,7 +1,7 @@
 type: 3dpw
-split: test
-seq: downtown_arguing_00
-root: /path/to/3DPW
+split: courtyard_basketball_00
+seq: courtyard_basketball_00
+root: /root/autodl-tmp/3DPW
 use_cams: True
 split_cameras: False
 camera_name: cameras_intrins_split

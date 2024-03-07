@@ -1,27 +1,30 @@
-git+https://github.com/nghorbani/configer
-git+https://github.com/mattloper/chumpy
-setuptools==59.5.0
-torchgeometry==0.1.2
+pytorch3d @ git+https://github.com/facebookresearch/pytorch3d.git@v0.7.4
+detectron2 @ git+https://github.com/facebookresearch/detectron2.git@v0.6
+chumpy @ git+https://github.com/mattloper/chumpy
+configer @ git+https://github.com/nghorbani/configer 
+numpy==1.22.3
+matplotlib
+scipy
+opencv-python
+tqdm
+PyYAML
 tensorboard
-numpy
+torchgeometry
 smplx
 pyrender
 open3d
+hydra-core
 imageio-ffmpeg
-matplotlib
-opencv-python
-scipy
 scikit-image
+scikit-learn
 joblib
 cython
-tqdm
-hydra-core
-pyyaml
 gdown
 dill
 motmetrics
+scenedetect[opencv]
 einops
-mmcv==1.3.9
-timm==0.4.9
+timm
 xtcocotools
-pandas==1.4.0
+pandas
+rerun-sdk>=0.9.0

@@ -38,7 +38,7 @@ def export_keypoints(seq_data, img_dir, kp_dir):
 
 def export_seq(data_root, split, seq_name, out_root):
     print(f"Exporting sequence {seq_name}")
-    data_path = f"{data_root}/sequenceFiles/{split}/{seq_name}.pkl"
+    data_path = f"{data_root}/sequenceFiles/train/{seq_name}.pkl"
     with open(data_path, "rb") as f:
         data = pickle.load(f, encoding="latin1")
 

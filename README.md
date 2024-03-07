@@ -2,120 +2,91 @@
 
 Official PyTorch implementation of the paper Decoupling Human and Camera Motion from Videos in the Wild
 
-[Project page](https://vye16.github.io/slahmr/) | [ArXiv](https://arxiv.org/abs/2302.12827)
+[Project page](https://vye16.github.io/slahmr/)
+
+[ArXiv](https://vye16.github.io/slahmr/)
 
 <img src="./teaser.png">
 
-##  [<img src="https://i.imgur.com/QCojoJk.png" width="40"> You can run SLAHMR in Google Colab](https://colab.research.google.com/drive/1knzxW3XuxiaBH6hcwx01cs6DfA4azv5E?usp=sharing)
-
-## News
-
-- [2023/07] We updated the code to support tracking from [4D Humans](https://shubham-goel.github.io/4dhumans/)! The original code remains in the `release` branch.
-- [2023/02] Original release!
-
 ## Getting started
-This code was tested on Ubuntu 22.04 LTS and requires a CUDA-capable GPU.
+This code was tested on Ubuntu 20.04 LTS and requires a CUDA-capable GPU
+
+### Please read this first
+
+#### The problem I've met
+- The package PHALP_plus may appears wrong. But don't worry I fixed it by install the correct torch.
+- The launch of slam may happend no val wrong or something like that, and we change the start and end parameter in `launch_slam.py` in `get_slam_command`
+- The last progress of the project which should generate the final video and the detection2 join in at the same time, but it doesn't work. And we change our torch into the 1.11.0 then complie it again.After that, it works fine.
+- Do not use env.yml which is used to create a conda env.
+
+Please follow my step, you'll find the right way yaaa!
 
 1. Clone repository and submodules
-    ```
-    git clone --recursive https://github.com/vye16/slahmr.git
-    ```
-    or initialize submodules if already cloned
-    ```
-    git submodule update --init --recursive
-    ```
-
-2. Set up conda environment. Run 
-    ```
-    source install_conda.sh
-    ```
-
-   Alternatively, you can also create a virtualenv environment:
-    ```
-    source install_pip.sh
-    ```
-
-    <details>
-        <summary>We also include the following steps for trouble-shooting.</summary>
-
-    * Create environment
-        ```
-        conda env create -f env.yaml
-        conda activate slahmr
-        ```
-        We use PyTorch 1.13.0 with CUDA 11.7. Please modify according to your setup; we've tested successfully for PyTorch 1.11 as well.
-        We've also included `env_build.yaml` to speed up installation using already-solved dependencies, though it might not be compatible with your CUDA driver.
-
-    * Install PHALP
-        ```
-        pip install phalp[all]@git+https://github.com/brjathu/PHALP.git
-        ```
-
-    * Install current source repo
-        ```
-        pip install -e .
-        ```
-
-    * Install ViTPose
-        ```
-        pip install -v -e third-party/ViTPose
-        ```
-
-    * Install DROID-SLAM (will take a while)
-        ```
-        cd third-party/DROID-SLAM
-        python setup.py install
-        ```
-    </details>
-
-3. Download models from [here](https://drive.google.com/file/d/1GXAd-45GzGYNENKgQxFQ4PHrBp8wDRlW/view?usp=sharing). Run
-    ```
-    ./download_models.sh
-    ```
-    or
-    ```
-    gdown https://drive.google.com/uc?id=1GXAd-45GzGYNENKgQxFQ4PHrBp8wDRlW
-    unzip -q slahmr_dependencies.zip
-    rm slahmr_dependencies.zip
-    ```
-
-    All models and checkpoints should have been unpacked in `_DATA`.
-
-
-## Fitting to an RGB video:
-For a custom video, you can edit the config file: `slahmr/confs/data/video.yaml`.
-Then, from the `slahmr` directory, you can run:
 ```
-python run_opt.py data=video run_opt=True run_vis=True
+git clone --recursive https://github.com/rerun-io/slahmr.git
+```
+or initialize submodules if already cloned
+```
+git submodule update --init --recursive
 ```
 
-We use hydra to launch experiments, and all parameters can be found in `slahmr/confs/config.yaml`.
-If you would like to update any aspect of logging or optimization tuning, update the relevant config files.
+2. You must use the `torch 1.10.0` before you complie the pytorch3d, apex. And this will be changed into 'torch 1.11.0'at the end of the whole progress.
 
-By default, we will log each run to `outputs/video-val/<DATE>/<VIDEO_NAME>`.
-Each stage of optimization will produce a separate subdirectory, each of which will contain outputs saved throughout the optimization
-and rendered videos of the final result for that stage of optimization.
-The `motion_chunks` directory contains the outputs of the final stage of optimization,
-`root_fit` and `smooth_fit` contain outputs of short, intermediate stages of optimization,
-and `init` contains the initialized outputs before optimization.
+> conda create -n env python==3.8
 
-We've provided a `run_vis.py` script for running visualization from logs after optimization.
-From the `slahmr` directory, run
+> conda install pytorch==1.10.0 torchvision==0.11.0 torchaudio==0.10.0 cudatoolkit=11.3 -c pytorch -c conda-forge
+or 
+> conda install pytorch==1.10.1 torchvision==0.11.2 torchaudio==0.10.1 cudatoolkit=11.3 -c pytorch -c conda-forge
+
+However, if you deploy this project on linux, please make sure you have the `gcc-7` and `g++-7` which could help you to complie the `wheel` and the `cuda-11.3`. [You may need this blog](https://blog.csdn.net/weixin_43279138/article/details/126728005)
+
+3. After you install the pytorch, you should do this stuff. Depending on the install.md from the repository of pytorch3d, you should use these command below to install it normally.
 ```
-python run_vis.py --log_root <LOG_ROOT>
+conda install -c fvcore -c iopath -c conda-forge fvcore iopath
+
+conda install pytorch3d -c pytorch3d
 ```
-and it will visualize all log subdirectories in `<LOG_ROOT>`.
-Each output npz file will contain the SMPL parameters for all optimized people, the camera intrinsics and extrinsics.
-The `motion_chunks` output will contain additional predictions from the motion prior.
-Please see `run_vis.py` for how to extract the people meshes from the output parameters.
+4. Fix up the package by using requirement.txt and three package contains in project when you use git clone
+```
+pip install -r requirement.txt
+pip install -e . # For the function use by tracking the path
+```
 
+5. Install ViTPose
+This is significant useful, and it will be use in the first run to process your video.
+```
+pip install -v -e third_party/PHALP_plus/ViTPose 
+```
 
-## Fitting to specific datasets:
+6. Install  DROID-SLAM (will take a while)
+This will be use in the second command.
+```
+cd third_party/DROID-SLAM
+python setup.py install
+```
+7. Install the mmcv-full=1.3.9
+```
+pip intall openmim -U
+
+mim install mmcv-full==1.3.9 (optional add `-f  https://mirrors.tuna.tsinghua.edu.cn/simple) 
+```
+8. Download models from [here](https://drive.google.com/file/d/1GXAd-45GzGYNENKgQxFQ4PHrBp8wDRlW/view?usp=sharing).
+```
+./download_models.sh
+
+or
+gdown https://drive.google.com/uc?id=1GXAd-45GzGYNENKgQxFQ4PHrBp8wDRlW
+unzip -q slahmr_dependencies.zip
+rm slahmr_dependencies.zip
+```
+
+## Data
 We provide configurations for dataset formats in `slahmr/confs/data`:
 1. Posetrack in `slahmr/confs/data/posetrack.yaml`
 2. Egobody in `slahmr/confs/data/egobody.yaml`
 3. 3DPW in `slahmr/confs/data/3dpw.yaml`
-4. Custom video in `slahmr/confs/data/video.yaml`
+4. DAVIS in `slahmr/confs/data/davis.yaml`
+5. Custom video in `slahmr/confs/data/video.yaml`
 
 **Please make sure to update all paths to data in the config files.**
 
@@ -136,7 +107,15 @@ python launch_slam.py --type <DATASET_TYPE> --root <DATASET_ROOT> --split <DATAS
 ```
 You can also update the paths to datasets in `slahmr/preproc/datasets.py` for repeated use.
 
-Then, from the `slahmr` directory,
+## Run the code
+Make sure all checkpoints have been unpacked `_DATA`.
+We use hydra to launch experiments, and all parameters can be found in `slahmr/confs/config.yaml`.
+If you would like to update any aspect of logging or optimization tuning, update the relevant config files.
+
+From the `slahmr` directory (replace `<DATA_CFG>` with the dataset config name, e.g., `davis`),
+
+When you run this, please change the torch into 1.11.0 and complie the detction2 again.
+
 ```
 python run_opt.py data=<DATA_CFG> run_opt=True run_vis=True
 ```
@@ -148,15 +127,19 @@ and batch-specific arguments shared across all jobs as
 python launch.py --gpus 1 2 -f job_specs/pt_val_shots.txt -s data=posetrack exp_name=posetrack_val
 ```
 
-## Evaluation on 3D datasets
-After launching and completing optimization on either the Egobody or 3DPW datasets,
-you can evaluate the outputs with scripts in the `eval` directory.
-Before running, please update `EGOBODY_ROOT` and `TDPW_ROOT` in `eval/tools.py`.
-Then, run
+We've also provided a separate `run_vis.py` script for running visualization in bulk.
+
+In addition you can get an interactive visualization of the optimization procedure and the final output using [Rerun](https://github.com/rerun-io/rerun) with `python run_rerun_vis.py --log_root <LOG_DIR>`.
+
+
+###The example command we use
 ```
-python run_eval.py -d <DSET_TYPE> -i <RES_ROOT> -f <JOB_FILE>
+python launch_phalp.py --type 3dpw --root /root/autodl-tmp/3DPW   --seqs  courtyard_basketball_00  --gpus 0 -y 
+
+python launch_slam.py --type 3dpw --root /root/autodl-tmp/3DPW --seqs courtyard_basketball_00 --gpus 0
+
+python run_opt.py data=3dpw run_opt=True run_vis=True
 ```
-where `<JOB_FILE>` is the same job file used to launch all optimization runs.
 
 
 ## BibTeX
@@ -170,3 +153,4 @@ If you use our code in your research, please cite the following paper:
     month={June},
     year={2023}
 }
+```
